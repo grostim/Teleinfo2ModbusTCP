@@ -328,10 +328,10 @@ void UpdatedFrame(ValueList * me)
   blinkDelay = 50; // 50ms
 
   // Envoyer les valeurs 
-  const char* jsonresult = sendJSON(me, fulldata);
-  debugD("%s", jsonresult);
-  JSON2Modbus(jsonresult);
-  PublishOnMQTT(jsonresult);
+  const char* jsonresult2 = sendJSON(me, fulldata);
+  debugD("%s", jsonresult2);
+  JSON2Modbus(jsonresult2);
+  PublishOnMQTT(jsonresult2);
   fulldata = false;
 }
 

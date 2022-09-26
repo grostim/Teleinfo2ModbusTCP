@@ -1,23 +1,7 @@
 // **********************************************************************************
-// ESP32 Teleinfo basic 
+// ESP32 Teleinfo2Modbus 
 // **********************************************************************************
-// Creative Commons Attrib Share-Alike License
-// You are free to use/extend this library but please abide with the CC-BY-SA license:
-// Attribution-NonCommercial-ShareAlike 4.0 International License
-// http://creativecommons.org/licenses/by-nc-sa/4.0/
-//
-// For any explanation about teleinfo ou use , see my blog
-// http://hallard.me/category/tinfo
-//
-// This program works with the Wifinfo board
-// see schematic here https://github.com/hallard/teleinfo/tree/master/Wifinfo
-//
-// Written by Charles-Henri Hallard (http://hallard.me)
-//
-// History : V1.00 2020-06-11 - First release
-//
-// All text above must be included in any redistribution.
-//
+
 // **********************************************************************************
 #include <WiFi.h>
 #include <LibTeleinfo.h>
@@ -87,74 +71,20 @@ unsigned long uptime=0; // save value we can use in sketch even if we're interru
 // Used to indicate if we need to send all date or just modified ones
 boolean fulldata = true;
 
- 
 /* ======================================================================
-Function: ADPSCallback 
-Purpose : called by library when we detected a ADPS on any phased
-Input   : phase number 
-            0 for ADPS (monophase)
-            1 for ADIR1 triphase
-            2 for ADIR2 triphase
-            3 for ADIR3 triphase
-Output  : - 
-Comments: should have been initialised in the main sketch with a
-          tinfo.attachADPSCallback(ADPSCallback())
-====================================================================== */
-void ADPSCallback(uint8_t phase)
-{
-  // Envoyer JSON { "ADPS"; n}
-  // n = numero de la phase 1 à 3
-  if (phase == 0)
-    phase = 1;
-  Debug.println(F("{\"ADPS\":"));
-  Debug.println('0' + phase);
-  Debug.println(F("}"));
-}
-
-/* ======================================================================
-Function: NewFrame 
-Purpose : callback when we received a complete teleinfo frame
-Input   : linked list pointer on the concerned data
-Output  : - 
+Function: PublishIfAvailable
+Purpose : Si le label est dispo dans le json publie la valeur (corrigé du ratio) sur Modbus à l'offset.
+Input   : A json formatted string, a label string, a modbus offset and a correction factor
+Output  : --
 Comments: -
 ====================================================================== */
-void NewFrame(ValueList * me)
+void PublishIfAvailable(String json, String label, uint16_t offset, float ratio)
 {
-  #ifdef RGB_LED_PIN
-  strip.SetPixelColor(0, red);
-  strip.Show();
-  #endif
-  blinkLed = millis();
-  blinkDelay = 50; // 50ms
-
-  // Envoyer les valeurs uniquement si demandé
-  if (fulldata) 
-    JSON2Modbus(sendJSON(me, true));
-
-  fulldata = false;
-}
-
-/* ======================================================================
-Function: UpdatedFrame 
-Purpose : callback when we received a complete teleinfo frame
-Input   : linked list pointer on the concerned data
-Output  : - 
-Comments: it's called only if one data in the frame is different than
-          the previous frame
-====================================================================== */
-void UpdatedFrame(ValueList * me)
-{
-  #ifdef RGB_LED_PIN
-  strip.SetPixelColor(0, blue);
-  strip.Show();
-  #endif
-
-  blinkLed = millis();
-  blinkDelay = 50; // 50ms
-
-  // Envoyer les valeurs 
-  JSON2Modbus(sendJSON(me, fulldata));
-  fulldata = false;
+  String result = "";
+  result = jsonExtract(json, label); //Total kWh HC
+  if (result != "") {
+    mb.addHreg(offset,result.toInt()*ratio);
+  }
 }
 
 /* ======================================================================
@@ -298,21 +228,77 @@ void JSON2Modbus(String json)
     PublishIfAvailable(json, linky2modbus[i].label, linky2modbus[i].ModbusOffset, linky2modbus[i].ratio);
   }
 }
+ 
 /* ======================================================================
-Function: PublishIfAvailable
-Purpose : Si le label est dispo dans le json publie la valeur (corrigé du ratio) sur Modbus à l'offset.
-Input   : A json formatted string, a label string, a modbus offset and a correction factor
-Output  : --
+Function: ADPSCallback 
+Purpose : called by library when we detected a ADPS on any phased
+Input   : phase number 
+            0 for ADPS (monophase)
+            1 for ADIR1 triphase
+            2 for ADIR2 triphase
+            3 for ADIR3 triphase
+Output  : - 
+Comments: should have been initialised in the main sketch with a
+          tinfo.attachADPSCallback(ADPSCallback())
+====================================================================== */
+void ADPSCallback(uint8_t phase)
+{
+  // Envoyer JSON { "ADPS"; n}
+  // n = numero de la phase 1 à 3
+  if (phase == 0)
+    phase = 1;
+  Debug.println(F("{\"ADPS\":"));
+  Debug.println('0' + phase);
+  Debug.println(F("}"));
+}
+
+/* ======================================================================
+Function: NewFrame 
+Purpose : callback when we received a complete teleinfo frame
+Input   : linked list pointer on the concerned data
+Output  : - 
 Comments: -
 ====================================================================== */
-void PublishIfAvailable(String json, String label, uint16_t offset, float ratio)
+void NewFrame(ValueList * me)
 {
-  String result = "";
-  result = jsonExtract(json, label); //Total kWh HC
-  if (result != "") {
-    mb.addHreg(offset,result.toInt()*ratio);
-  }
+  #ifdef RGB_LED_PIN
+  strip.SetPixelColor(0, red);
+  strip.Show();
+  #endif
+  blinkLed = millis();
+  blinkDelay = 50; // 50ms
+
+  // Envoyer les valeurs uniquement si demandé
+  if (fulldata) 
+    JSON2Modbus(sendJSON(me, true));
+
+  fulldata = false;
 }
+
+/* ======================================================================
+Function: UpdatedFrame 
+Purpose : callback when we received a complete teleinfo frame
+Input   : linked list pointer on the concerned data
+Output  : - 
+Comments: it's called only if one data in the frame is different than
+          the previous frame
+====================================================================== */
+void UpdatedFrame(ValueList * me)
+{
+  #ifdef RGB_LED_PIN
+  strip.SetPixelColor(0, blue);
+  strip.Show();
+  #endif
+
+  blinkLed = millis();
+  blinkDelay = 50; // 50ms
+
+  // Envoyer les valeurs 
+  JSON2Modbus(sendJSON(me, fulldata));
+  fulldata = false;
+}
+
+
 
 /* ======================================================================
 Function: PublishIfAvailable
@@ -336,12 +322,8 @@ void PublishOnMQTT(String json)
     JsonObject obj = doc.as<JsonObject>();
 
   for (JsonObject::iterator it=obj.begin(); it!=obj.end(); ++it) {
-    char s[it->key().length()];
-    it->key().toCharArray(s, it->key().length());
-    Debug.println(s);
-    char s[it->value().length()];
-    it->value().toCharArray(s, it->value().length());
-    Debug.println(s);
+    it->key();
+    it->value();
   }
 
 }
@@ -362,78 +344,20 @@ void connected_to_ap(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info){
     blinkDelay = 500; // 500ms
     #endif
 }
+
 /* ======================================================================
-Function: got_ip_from_ap
-Purpose : Call back functionCollect info about the connected wifi and output them on serial link
+Function: start_modbus
+Purpose : Démarre le Modbus
 Input   : -
 Output  : - 
 Comments: -
 ====================================================================== */
-void got_ip_from_ap(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info){
-    Serial.print("Local ESP32 IP: ");
-    Serial.println(WiFi.localIP());
-    start_modbus();
-    initOTA();
-    Debug.begin("ESP32"); 
-    client.setServer(mqtt_server, mqtt_port);
-    client.setCallback(callback);
-}
-
 void start_modbus(){
   mb.server(502);
   for (byte i = 0; i< (sizeof(constantesCompteur) / sizeof(constantesCompteur[0])) ; i = i + 1) {
     mb.addHreg(constantesCompteur[i][0],constantesCompteur[i][1]);
   }
 
-}
-
-void callback(char* topic, byte* message, unsigned int length) {
-  Debug.print("Message arrived on topic: ");
-  Debug.print(topic);
-  Debug.print(". Message: ");
-  String messageTemp;
-  
-  for (int i = 0; i < length; i++) {
-    Debug.print((char)message[i]);
-    messageTemp += (char)message[i];
-  }
-  Debug.println();
-
-  // Feel free to add more if statements to control more GPIOs with MQTT
-  String String1 = mqtt_topic;
-  String String2 = "/LED";
-  String control_topic = String1 + String2 ;
-
-  if (String(topic) == control_topic) {
-    Debug.print("Changing output to ");
-    if(messageTemp == "on"){
-      Debug.println("on");
-      digitalWrite(LED_BUILTIN, HIGH);
-    }
-    else if(messageTemp == "off"){
-      Debug.println("off");
-      digitalWrite(LED_BUILTIN, LOW);
-    }
-  }
-}
-
-void reconnect() {
-  // Loop until we're reconnected
-  while (!client.connected()) {
-    Debug.print("Attempting MQTT connection...");
-    // Attempt to connect
-    if (client.connect("Linky", mqtt_user, mqtt_password)) {
-      Debug.println("connected");
-      // Subscribe
-      client.subscribe(mqtt_topic);
-    } else {
-      Debug.print("failed, rc=");
-      Debug.print(client.state());
-      Debug.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
-  }
 }
 
 /* ======================================================================
@@ -485,6 +409,80 @@ void initOTA() {
   });
 
   ArduinoOTA.begin();
+}
+
+/* ======================================================================
+Function: callback
+Purpose : Call back function for MQTT
+Input   : -
+Output  : - 
+Comments: -
+====================================================================== */
+void callback(char* topic, byte* message, unsigned int length) {
+  Debug.print("Message arrived on topic: ");
+  Debug.print(topic);
+  Debug.print(". Message: ");
+  String messageTemp;
+  
+  for (int i = 0; i < length; i++) {
+    Debug.print((char)message[i]);
+    messageTemp += (char)message[i];
+  }
+  Debug.println();
+
+  // Feel free to add more if statements to control more GPIOs with MQTT
+  String String1 = mqtt_topic;
+  String String2 = "/LED";
+  String control_topic = String1 + String2 ;
+
+  if (String(topic) == control_topic) {
+    Debug.print("Changing output to ");
+    if(messageTemp == "on"){
+      Debug.println("on");
+      digitalWrite(LED_BUILTIN, HIGH);
+    }
+    else if(messageTemp == "off"){
+      Debug.println("off");
+      digitalWrite(LED_BUILTIN, LOW);
+    }
+  }
+}
+/* ======================================================================
+Function: got_ip_from_ap
+Purpose : Call back functionCollect info about the connected wifi and output them on serial link
+Input   : -
+Output  : - 
+Comments: -
+====================================================================== */
+void got_ip_from_ap(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info){
+    Serial.print("Local ESP32 IP: ");
+    Serial.println(WiFi.localIP());
+    start_modbus();
+    initOTA();
+    Debug.begin("ESP32"); 
+    client.setServer(mqtt_server, mqtt_port);
+    client.setCallback(callback);
+}
+
+
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Debug.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if (client.connect("Linky", mqtt_user, mqtt_password)) {
+      Debug.println("connected");
+      // Subscribe
+      client.subscribe(mqtt_topic);
+    } else {
+      Debug.print("failed, rc=");
+      Debug.print(client.state());
+      Debug.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
 }
 
 /* ======================================================================
@@ -551,41 +549,6 @@ void loop()
   static char c;
   static unsigned long previousMillis = 0;
   unsigned long currentMillis = millis();
-
-  // Button to enable TIC
-#if defined (PUSH_BUTTON) && defined (TIC_ENABLE_PIN)
-  static uint8_t enableTIC = HIGH;
-  static uint8_t buttonState = 0;
-  static unsigned long lastDebounceTime = 0;  
-
-  uint8_t button = digitalRead(PUSH_BUTTON);
-
-  // New Press 
-  if ( button==LOW && buttonState==0) {
-    buttonState = 1; 
-    lastDebounceTime = millis(); 
-
-  // Pressed enought (debounced)
-  } else if ( buttonState==1 && button==LOW && (millis()-lastDebounceTime)>50 ) {
-    buttonState = 2; 
- 
-  // Release (no need debouce here)
-  } else if ( buttonState==2 && button==HIGH ) {
-    if ( enableTIC ) {
-      digitalWrite(TIC_ENABLE_PIN, LOW);
-      enableTIC = false; 
-    } else  {
-      digitalWrite(TIC_ENABLE_PIN, HIGH);
-      enableTIC = true; 
-    }
-
-    Debug.println(PSTR("\r\nEnable TIC=%d\r\n"), enableTIC);
-    lastDebounceTime = millis(); 
-    buttonState = 0;
-  } 
-
-#endif
-
   
   // Avons nous recu un ticker de seconde?
   if (tick1sec)

@@ -62,7 +62,7 @@ TInfo tinfo; // Teleinfo object
 
 // Pour clignotement LED asynchrone
 unsigned long blinkLed  = 0;
-uint8_t blinkDelay= 0;
+uint16_t blinkDelay= 0;
 
 // Uptime timer
 boolean tick1sec=0;// one for interrupt, don't mess with 
@@ -78,7 +78,7 @@ Input   : A json formatted string, a label string, a modbus offset and a correct
 Output  : --
 Comments: -
 ====================================================================== */
-void PublishIfAvailable(String json, String label, uint16_t offset, float ratio)
+void PublishIfAvailable(const char* json, String label, uint16_t offset, float ratio)
 {
   String result = "";
   result = jsonExtract(json, label); //Total kWh HC
@@ -95,7 +95,7 @@ Input   : linked list pointer on the concerned data
 Output  : A json formatted string
 Comments: -
 ====================================================================== */
-String sendJSON(ValueList * me, boolean all)
+const char* sendJSON(ValueList * me, boolean all)
 {
   bool firstdata = true;
   String json = "";
@@ -159,10 +159,41 @@ String sendJSON(ValueList * me, boolean all)
     }
    // Json end
    json +=F("}");
-   Debug.println(json);
-   return json;
-   
   }
+  const char* s = json.c_str();
+  Debug.println(s);
+  return s;  
+}
+
+
+/* ======================================================================
+Function: PublishOnMQTT
+Purpose : Diffuse les data sur MQTT
+Input   : A json formatted string
+Output  : --
+Comments: -
+====================================================================== */
+
+void PublishOnMQTT(const char* json)
+{
+  Debug.println(json);
+  StaticJsonDocument<384> doc;
+  DeserializationError error = deserializeJson(doc, json);
+
+  if (error) {
+    Debug.print("deserializeJson() failed: ");
+    Debug.println(error.c_str());
+    Debug.println(json);
+    return;
+  }
+
+  JsonObject obj = doc.as<JsonObject>();
+
+  for (JsonPair p : obj) {
+    Debug.println(p.key().c_str()); 
+    p.value();
+  }
+
 }
 
 /* ======================================================================
@@ -172,12 +203,12 @@ Input   : A json formatted string
 Output  : --
 Comments: -
 ====================================================================== */
-void JSON2Modbus(String json)
+void JSON2Modbus(const char* json)
 {
   // Voir https://www.enika.eu/data/files/produkty/energy%20m/CP/em24%20ethernet%20cp.pdf pour le détail des adresses et valeurs coté ELM24
   //Voir https://www.enedis.fr/media/2035/download pour les label coté Linky
   struct LINKY2MODBUS{
-  char* label;
+  const char* label;
   int ModbusOffset;
   float ratio;
   } linky2modbus[] = {
@@ -269,9 +300,11 @@ void NewFrame(ValueList * me)
   blinkDelay = 50; // 50ms
 
   // Envoyer les valeurs uniquement si demandé
-  if (fulldata) 
-    JSON2Modbus(sendJSON(me, true));
-
+  if (fulldata) {
+    const char* jsonresult = sendJSON(me, true);
+    JSON2Modbus(jsonresult);
+    PublishOnMQTT(jsonresult);
+  }
   fulldata = false;
 }
 
@@ -294,39 +327,13 @@ void UpdatedFrame(ValueList * me)
   blinkDelay = 50; // 50ms
 
   // Envoyer les valeurs 
-  JSON2Modbus(sendJSON(me, fulldata));
+  const char* jsonresult = sendJSON(me, fulldata);
+  JSON2Modbus(jsonresult);
+  PublishOnMQTT(jsonresult);
   fulldata = false;
 }
 
 
-
-/* ======================================================================
-Function: PublishIfAvailable
-Purpose : Si le label est dispo dans le json publie la valeur (corrigé du ratio) sur Modbus à l'offset.
-Input   : A json formatted string, a label string, a modbus offset and a correction factor
-Output  : --
-Comments: -
-====================================================================== */
-void PublishOnMQTT(String json)
-{
-  StaticJsonDocument<384> doc;
-
-  DeserializationError error = deserializeJson(doc, json);
-
-  if (error) {
-    Debug.print("deserializeJson() failed: ");
-    Debug.println(error.c_str());
-    return;
-  }
-
-    JsonObject obj = doc.as<JsonObject>();
-
-  for (JsonObject::iterator it=obj.begin(); it!=obj.end(); ++it) {
-    it->key();
-    it->value();
-  }
-
-}
 
 /* ======================================================================
 Function: connected_to_ap

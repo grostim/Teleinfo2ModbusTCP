@@ -85,7 +85,7 @@ void PublishIfAvailable(String json1, String label, uint16_t offset, float ratio
   result = jsonExtract(json1, label); //Total kWh HC
   if (result != "") {
     mb.addHreg(offset,result.toInt()*ratio);
-    debugI("Publish %s on Modbus register %X , value : %d",label, offset,result.toInt()*ratio );
+    //debugI("Publish %s on Modbus register %X , value : %d",label, offset,result.toInt()*ratio );
   }
 }
 
@@ -190,8 +190,15 @@ void PublishOnMQTT(String json2)
   JsonObject obj = doc.as<JsonObject>();
 
   for (JsonPair p : obj) {
-    debugW("%s", p.key().c_str()); 
-    p.value();
+
+    if (p.value().is<const char*>()) {
+      const char* s = p.value();
+      debugW("%s : %s",p.key().c_str(), s);
+    } else {
+      uint16_t s = p.value();
+      debugW("%s : %d",p.key().c_str(), s);
+    }
+
   }
 
 }

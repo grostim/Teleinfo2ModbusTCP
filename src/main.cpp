@@ -45,6 +45,7 @@ const _Mode_e modeLinky = TINFO_MODE_HISTORIQUE; // 0= TINFO_MODE_HISTORIQUE ; 1
 
 ModbusIP mb;
 RemoteDebug Debug;
+#define WEBSOCKET_DISABLED true
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -174,16 +175,15 @@ Output  : --
 Comments: -
 ====================================================================== */
 
-void PublishOnMQTT(const char* json)
+void PublishOnMQTT(const char* json2)
 {
-  debugD("%s", json);
+  debugD("%s", json2);
   StaticJsonDocument<384> doc;
-  DeserializationError error = deserializeJson(doc, json);
+  DeserializationError error = deserializeJson(doc, json2);
 
   if (error) {
     debugE("deserializeJson() failed: %s", error.c_str());
-    Debug.println(error.c_str());
-    Debug.println(json);
+    debugE("%s", json2);
     return;
   }
 
@@ -503,6 +503,9 @@ Comments: -
 ====================================================================== */
 void setup()
 {
+  Debug.setResetCmdEnabled(true); // Enable the reset command
+  Debug.showProfiler(true); // Profiler (Good to measure times, to optimize codes)
+  Debug.showColors(true); // Colors
   // Serial, pour le debug
   Serial.begin(115200);
   Serial.println(F("\r\n\r\n=============="));

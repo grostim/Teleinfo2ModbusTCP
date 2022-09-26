@@ -161,7 +161,7 @@ const char* sendJSON(ValueList * me, boolean all)
    json +=F("}");
   }
   const char* s = json.c_str();
-  Debug.println(s);
+  debugD("%s", s);
   return s;  
 }
 
@@ -176,12 +176,12 @@ Comments: -
 
 void PublishOnMQTT(const char* json)
 {
-  Debug.println(json);
+  debugD("%s", json);
   StaticJsonDocument<384> doc;
   DeserializationError error = deserializeJson(doc, json);
 
   if (error) {
-    Debug.print("deserializeJson() failed: ");
+    debugE("deserializeJson() failed: %s", error.c_str());
     Debug.println(error.c_str());
     Debug.println(json);
     return;
@@ -190,7 +190,7 @@ void PublishOnMQTT(const char* json)
   JsonObject obj = doc.as<JsonObject>();
 
   for (JsonPair p : obj) {
-    Debug.println(p.key().c_str()); 
+    debugD("%s", p.key().c_str()); 
     p.value();
   }
 
@@ -302,6 +302,7 @@ void NewFrame(ValueList * me)
   // Envoyer les valeurs uniquement si demandé
   if (fulldata) {
     const char* jsonresult = sendJSON(me, true);
+    debugD("%s", jsonresult);
     JSON2Modbus(jsonresult);
     PublishOnMQTT(jsonresult);
   }
@@ -328,6 +329,7 @@ void UpdatedFrame(ValueList * me)
 
   // Envoyer les valeurs 
   const char* jsonresult = sendJSON(me, fulldata);
+  debugD("%s", jsonresult);
   JSON2Modbus(jsonresult);
   PublishOnMQTT(jsonresult);
   fulldata = false;

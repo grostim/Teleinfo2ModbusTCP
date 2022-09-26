@@ -194,9 +194,17 @@ void PublishOnMQTT(String json2)
     if (p.value().is<const char*>()) {
       const char* s = p.value();
       debugW("%s : %s",p.key().c_str(), s);
+      String topic = String();
+      topic = String(mqtt_topic) + "/"; 
+      topic = topic + String(p.key().c_str());
+      client.publish(topic.c_str(), s);
     } else {
       uint16_t s = p.value();
       debugW("%s : %d",p.key().c_str(), s);
+      String topic = String();
+      topic = String(mqtt_topic) + "/"; 
+      topic = topic + String(p.key().c_str());
+      client.publish(topic.c_str(), String(s).c_str());
     }
 
   }

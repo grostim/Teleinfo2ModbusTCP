@@ -190,7 +190,7 @@ void PublishOnMQTT(const char* json2)
   JsonObject obj = doc.as<JsonObject>();
 
   for (JsonPair p : obj) {
-    debugD("%s", p.key().c_str()); 
+    debugW("%s", p.key().c_str()); 
     p.value();
   }
 

@@ -79,13 +79,13 @@ Input   : A json formatted string, a label string, a modbus offset and a correct
 Output  : --
 Comments: -
 ====================================================================== */
-void PublishIfAvailable(const char* json1, String label, uint16_t offset, float ratio)
+void PublishIfAvailable(String json1, String label, uint16_t offset, float ratio)
 {
   String result = "";
   result = jsonExtract(json1, label); //Total kWh HC
   if (result != "") {
     mb.addHreg(offset,result.toInt()*ratio);
-    debugI("Publish %s on Modbus register %a , value : %d",label, offset,result.toInt()*ratio );
+    debugI("Publish %s on Modbus register %X , value : %d",label, offset,result.toInt()*ratio );
   }
 }
 
@@ -97,7 +97,7 @@ Input   : linked list pointer on the concerned data
 Output  : A json formatted string
 Comments: -
 ====================================================================== */
-const char* sendJSON(ValueList * me, boolean all)
+String sendJSON(ValueList * me, boolean all)
 {
   bool firstdata = true;
   String json = "";
@@ -162,9 +162,8 @@ const char* sendJSON(ValueList * me, boolean all)
    // Json end
    json +=F("}");
   }
-  const char* s = json.c_str();
-  debugD("%s", s);
-  return s;  
+  debugD("%s", json);
+  return json;  
 }
 
 
@@ -176,7 +175,7 @@ Output  : --
 Comments: -
 ====================================================================== */
 
-void PublishOnMQTT(const char* json2)
+void PublishOnMQTT(String json2)
 {
   debugD("%s", json2);
   StaticJsonDocument<384> doc;
@@ -204,7 +203,7 @@ Input   : A json formatted string
 Output  : --
 Comments: -
 ====================================================================== */
-void JSON2Modbus(const char* json)
+void JSON2Modbus(String json)
 {
   // Voir https://www.enika.eu/data/files/produkty/energy%20m/CP/em24%20ethernet%20cp.pdf pour le détail des adresses et valeurs coté ELM24
   //Voir https://www.enedis.fr/media/2035/download pour les label coté Linky
@@ -302,7 +301,7 @@ void NewFrame(ValueList * me)
 
   // Envoyer les valeurs uniquement si demandé
   if (fulldata) {
-    const char* jsonresult = sendJSON(me, true);
+    String jsonresult = sendJSON(me, true);
     debugD("%s", jsonresult);
     JSON2Modbus(jsonresult);
     PublishOnMQTT(jsonresult);
@@ -329,7 +328,7 @@ void UpdatedFrame(ValueList * me)
   blinkDelay = 50; // 50ms
 
   // Envoyer les valeurs 
-  const char* jsonresult2 = sendJSON(me, fulldata);
+  String jsonresult2 = sendJSON(me, fulldata);
   debugD("%s", jsonresult2);
   JSON2Modbus(jsonresult2);
   PublishOnMQTT(jsonresult2);

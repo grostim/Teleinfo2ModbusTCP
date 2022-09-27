@@ -41,7 +41,7 @@ const uint16_t mqtt_port = 1883;
 const char* mqtt_topic = "Linky";
 const char* mqtt_user = "mqtt";
 const char* mqtt_password = "mqttpass";
-const _Mode_e modeLinky = TINFO_MODE_HISTORIQUE; // 0= TINFO_MODE_HISTORIQUE ; 1= TINFO_MODE_STANDARD
+const _Mode_e modeLinky = TINFO_MODE_STANDARD; // 0= TINFO_MODE_HISTORIQUE ; 1= TINFO_MODE_STANDARD
 
 ModbusIP mb;
 RemoteDebug Debug;
@@ -549,7 +549,7 @@ void setup()
   // La téléinfo est connectee sur D3
   // ceci permet d'eviter les conflits avec la 
   // vraie serial lors des uploads
-  Serial1.begin(1200, SERIAL_7E1, TIC_RX_PIN);
+  Serial1.begin(9600, SERIAL_7E1, TIC_RX_PIN);
   pinMode(TIC_RX_PIN, INPUT_PULLUP);
 
   // Init teleinfo

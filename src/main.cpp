@@ -162,7 +162,7 @@ String sendJSON(ValueList * me, boolean all)
    // Json end
    json +=F("}");
   }
-  debugD("%s", json);
+  debugD("%s", json.c_str());
   return json;  
 }
 
@@ -177,8 +177,8 @@ Comments: -
 
 void PublishOnMQTT(String json2)
 {
-  debugD("%s", json2);
-  StaticJsonDocument<384> doc;
+  debugD("%s", json2.c_str());
+  StaticJsonDocument<1536> doc;
   DeserializationError error = deserializeJson(doc, json2);
 
   if (error) {
@@ -199,7 +199,7 @@ void PublishOnMQTT(String json2)
       topic = topic + String(p.key().c_str());
       client.publish(topic.c_str(), s);
     } else {
-      uint16_t s = p.value();
+      unsigned long s = p.value();
       debugW("%s : %d",p.key().c_str(), s);
       String topic = String();
       topic = String(mqtt_topic) + "/"; 

@@ -50,14 +50,14 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 
 // Voir https://www.enika.eu/data/files/produkty/energy%20m/CP/em24%20ethernet%20cp.pdf pour le détail des adresses et valeurs
-const int constantesCompteur[6][2]= { 
+const int constantesCompteur[][2]= { 
   { 0x000B, 1653 }, //Carlo Gavazzi identification code UIN 
   { 0x0302, 1 }, // Version and revision code of measurement module
   { 0x0304, 1 }, // Version and revision code of communication module
   { 0x1002, 3 }, // Measuring system  (3="1Ph", 4=“3P”)
   { 0x0032, 0 }, // Phase sequence 
   { 0x0033, 500 }, // Frequence
-  { 0xA100, 1 } //Front selector status 
+  { 0xA100, 1 }, //Front selector status 
   };
 
 TInfo tinfo; // Teleinfo object

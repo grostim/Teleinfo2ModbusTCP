@@ -51,11 +51,12 @@ PubSubClient client(espClient);
 
 // Voir https://www.enika.eu/data/files/produkty/energy%20m/CP/em24%20ethernet%20cp.pdf pour le détail des adresses et valeurs
 const int constantesCompteur[6][2]= { 
-  { 0x000B, 1653 }, //Carlo Gavazzi identification code UIN
+  { 0x000B, 1653 }, //Carlo Gavazzi identification code UIN 
   { 0x0302, 1 }, // Version and revision code of measurement module
   { 0x0304, 1 }, // Version and revision code of communication module
   { 0x1002, 3 }, // Measuring system  (3="1Ph", 4=“3P”)
   { 0x0032, 0 }, // Phase sequence 
+  { 0x0033, 500 }, // Frequence
   { 0xA100, 1 } //Front selector status 
   };
 
@@ -228,6 +229,7 @@ void JSON2Modbus(String json)
   float ratio;
   } linky2modbus[] = {
 // Variable pour mode historiques
+//{"_UPTIME":60, "ADCO":2147483647, "OPTARIF":"HC..", "ISOUSC":45, "HCHC":1221514, "HCHP":2482864, "PTEC":"HP..", "IINST":3, "IMAX":90, "PAPP":920, "HHPHC":"A", "MOTDETAT":0}
     //Pour contrat HC/HP
     { "HCHC", 0x0048, 0.01 }, //Compteur Heures Creuses en Wh
     { "HCHP", 0x0046, 0.01 }, //Compteur Heures Pleines en Wh
@@ -251,7 +253,9 @@ void JSON2Modbus(String json)
     { "IINST3", 0x0010, 1000}, //Intensité instantané en A - L3
 
 // Variables pour mode Standard
-    { "EAST", 0x004E, 0.01}, //Energie active soutirée totale en Wh
+//{"_UPTIME":319500, "ADSC":2147483647, "VTIC":2, "NGTF":"H PLEINE/CREUSE ", "LTARF":" HEURE  PLEINE  ", "EAST":␛[0m3839865, "EASF01":1266150, "EASF02":2573715, "EASF03":0, "EASF04":0, "EASF05":0, "EASF06":0, "EASF07":0, "EASF08":0, "EASF09":0, "EASF10":0, "EASD01":3␛[0m839865, "EASD02":0, "EASD03":0, "EASD04":0, "IRMS1":3, "URMS1":233, "PREF":9, "PCOUP":9, "SINSTS":780, "SMAXSN":2910, "SMAXSN-1":5480, "CCASN":536, "CC␛[0mASN-1":1022, "UMOY1":230, "STGE":"00DA0401", "MSG1":"     PAS DE          MESSAGE    ", "PRM":2147483647, "RELAIS":0, "NTARF":2, "NJOURF":0, "NJOURF+1"␛[0m:0, "PJOURF+1":"0000C001 061E8002 161EC001 NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE"}
+    { "PRM", 0x5000, 1}, //Identifiant Linky
+    { "EAST", 0x0034, 0.01}, //Energie active soutirée totale en Wh
     { "EASF01", 0x0046, 0.01 }, //Compteur EJP Heures Normales en Wh
     { "EASF02", 0x0048, 0.01 }, //Compteur EJP Pointes en Wh
     { "EASF03", 0x004A, 0.01 }, //Compteur EJP Heures Normales en Wh
@@ -267,6 +271,14 @@ void JSON2Modbus(String json)
     { "SINSTS2", 0x001A, 10}, //Puissance Apparente instantanéé en VA - L2
     { "SINSTS3", 0x001C, 10}, //Puissance Apparente instantanéé en VA - L2
     { "SINSTI", 0x002A, -10}, //Puissance Apparente instantanéé en VA
+  // On triche un peu pour émuler le EM24:
+    { "SINSTS", 0x0028, 10}, //Puissance Apparente instantanéé en W (au lieu de VA)
+    { "SINSTS1", 0x0012, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L1
+    { "SINSTS2", 0x0014, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L2
+    { "SINSTS3", 0x0016, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L2
+    { "SINSTI", 0x0028, -10}, //Puissance Apparente instantanéé en W (au lieu de VA)
+    { "EAST", 0x0040, 0.01}, //Energie active soutirée totale en Wh (Phase1)
+    { "EAIT", 0x004E, 0.01}, //Energie active injectée totale en Wh
   };
 //{"_UPTIME":60, "ADCO":2147483647, "OPTARIF":"HC..", "ISOUSC":45, "HCHC":1221514, "HCHP":2482864, "PTEC":"HP..", "IINST":3, "IMAX":90, "PAPP":920, "HHPHC":"A", "MOTDETAT":0}
 

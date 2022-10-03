@@ -3,9 +3,13 @@
 // **********************************************************************************
 
 // **********************************************************************************
+//#define DEBUG_MQTT
+#define DEBUG_MODBUS
+#define DEBUG_LINKY
+
 #include <WiFi.h>
 #include <LibTeleinfo.h>
-#include <ModbusIP_ESP8266.h>
+#include "ModbusServerWiFi.h"
 #include <jsonlib.h>
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
@@ -43,7 +47,7 @@ const char* mqtt_user = "mqtt";
 const char* mqtt_password = "mqttpass";
 const _Mode_e modeLinky = TINFO_MODE_STANDARD; // 0= TINFO_MODE_HISTORIQUE ; 1= TINFO_MODE_STANDARD
 
-ModbusIP mb;
+ModbusServerWiFi mb;
 RemoteDebug Debug;
 #define WEBSOCKET_DISABLED true
 WiFiClient espClient;
@@ -72,6 +76,57 @@ unsigned long uptime=0; // save value we can use in sketch even if we're interru
 
 // Used to indicate if we need to send all date or just modified ones
 boolean fulldata = true;
+/*
+
+Functions pour eModbus
+
+*/
+
+ModbusMessage FC03(ModbusMessage request) {
+  ModbusMessage response;      // The Modbus message we are going to give back
+  uint16_t addr = 0;           // Start address
+  uint16_t words = 0;          // # of words requested
+  request.get(2, addr);        // read address from request
+  request.get(4, words);       // read # of words from request
+
+// Address overflow?
+  if ((addr + words) > 20) {
+    // Yes - send respective error response
+    response.setError(request.getServerID(), request.getFunctionCode(), ILLEGAL_DATA_ADDRESS);
+  } else {
+    // Set up response
+    response.add(request.getServerID(), request.getFunctionCode(), (uint8_t)(words * 2));
+    // Request for FC 0x03?
+    if (request.getFunctionCode() == READ_HOLD_REGISTER) {
+      // Yes. Complete response
+      for (uint8_t i = 0; i < words; ++i) {
+        // send increasing data values
+        response.add((uint16_t)(addr + i));
+      }
+    } else {
+      // No, this is for FC 0x04. Response is random
+      for (uint8_t i = 0; i < words; ++i) {
+        // send increasing data values
+        response.add((uint16_t)random(1, 65535));
+      }
+    }
+  }
+  // Send response back
+  return response;
+}
+
+// Data and error handlers for the client
+void handleData(ModbusMessage rsp, uint32_t token) {
+  Serial.printf("Response #%d: ", token);
+  for (auto& byte : rsp) {
+    Serial.printf("%02X ", byte);
+  }
+  Serial.println("");
+}
+void handleError(Error err, uint32_t token) {
+  // Print out error using color emphasis from internal Logging.h
+  Serial.printf("Response #%d: Error %02X - " LL_RED "%s\n" LL_NORM, token, (uint8_t)err, (const char *)ModbusError(err));
+}
 
 /* ======================================================================
 Function: PublishIfAvailable
@@ -85,8 +140,17 @@ void PublishIfAvailable(String json1, String label, uint16_t offset, float ratio
   String result = "";
   result = jsonExtract(json1, label); //Total kWh HC
   if (result != "") {
-    mb.addHreg(offset,result.toInt()*ratio);
-    //debugI("Publish %s on Modbus register %X , value : %d",label, offset,result.toInt()*ratio );
+    uint16_t result_i = result.toInt()*ratio;
+    if (mb.addHreg(offset,result_i)) {
+      #ifdef DEBUG_MODBUS
+      debugI("Publish %s on Modbus register %X , chaine: %s , value : %u",label, offset, result, result_i );
+      #endif
+    } 
+    else {
+      #ifdef DEBUG_MODBUS
+      debugE("NOT Published %s on Modbus register %X , value : %u",label, offset,result_i );
+      #endif
+      }
   }
 }
 
@@ -163,7 +227,9 @@ String sendJSON(ValueList * me, boolean all)
    // Json end
    json +=F("}");
   }
+  #ifdef DEBUG_LINKY
   debugD("%s", json.c_str());
+  #endif
   return json;  
 }
 
@@ -182,11 +248,13 @@ void PublishOnMQTT(String json2)
   StaticJsonDocument<1536> doc;
   DeserializationError error = deserializeJson(doc, json2);
 
+  #ifdef DEBUG_MQTT
   if (error) {
     debugE("deserializeJson() failed: %s", error.c_str());
     debugE("%s", json2);
     return;
   }
+  #endif
 
   JsonObject obj = doc.as<JsonObject>();
 
@@ -194,14 +262,18 @@ void PublishOnMQTT(String json2)
 
     if (p.value().is<const char*>()) {
       const char* s = p.value();
+      #ifdef DEBUG_MQTT
       debugW("%s : %s",p.key().c_str(), s);
+      #endif
       String topic = String();
       topic = String(mqtt_topic) + "/"; 
       topic = topic + String(p.key().c_str());
       client.publish(topic.c_str(), s);
     } else {
       unsigned long s = p.value();
+      #ifdef DEBUG_MQTT
       debugW("%s : %d",p.key().c_str(), s);
+      #endif
       String topic = String();
       topic = String(mqtt_topic) + "/"; 
       topic = topic + String(p.key().c_str());
@@ -305,9 +377,11 @@ void ADPSCallback(uint8_t phase)
   // n = numero de la phase 1 à 3
   if (phase == 0)
     phase = 1;
+  #ifdef DEBUG_LINKY
   Debug.println(F("{\"ADPS\":"));
   Debug.println('0' + phase);
   Debug.println(F("}"));
+  #endif
 }
 
 /* ======================================================================
@@ -329,7 +403,9 @@ void NewFrame(ValueList * me)
   // Envoyer les valeurs uniquement si demandé
   if (fulldata) {
     String jsonresult = sendJSON(me, true);
+    #ifdef DEBUG_LINKY
     debugD("%s", jsonresult);
+    #endif
     JSON2Modbus(jsonresult);
     PublishOnMQTT(jsonresult);
   }
@@ -356,7 +432,9 @@ void UpdatedFrame(ValueList * me)
 
   // Envoyer les valeurs 
   String jsonresult2 = sendJSON(me, fulldata);
+  #ifdef DEBUG_LINKY
   debugD("%s", jsonresult2);
+  #endif
   JSON2Modbus(jsonresult2);
   PublishOnMQTT(jsonresult2);
   fulldata = false;
@@ -389,7 +467,13 @@ Output  : -
 Comments: -
 ====================================================================== */
 void start_modbus(){
-  mb.server(502);
+
+  // Set up TCP server to react on FCs 0x03 and 0x04
+  MBserver.registerWorker(1, READ_HOLD_REGISTER, &FC03);
+  //MBserver.registerWorker(1, READ_INPUT_REGISTER, &FC03);
+// Start server
+  MBserver.start(ServerPort, 2, 2000);
+
   for (byte i = 0; i< (sizeof(constantesCompteur) / sizeof(constantesCompteur[0])) ; i = i + 1) {
     mb.addHreg(constantesCompteur[i][0],constantesCompteur[i][1]);
   }

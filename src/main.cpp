@@ -84,8 +84,12 @@ void PublishIfAvailable(String json1, String label, uint16_t offset, float ratio
   String result = "";
   result = jsonExtract(json1, label); //Total kWh HC
   if (result != "") {
-    mb.addHreg(offset,result.toInt()*ratio);
-    //debugI("Publish %s on Modbus register %X , value : %d",label, offset,result.toInt()*ratio );
+    if (mb.addHreg(offset,result.toInt()*ratio)) {
+    debugI("Publish %s on Modbus register %X , value : %d",label, offset,result.toInt()*ratio );
+    } 
+    else {
+      debugE"NOT Published %s on Modbus register %X , value : %d",label, offset,result.toInt()*ratio );
+      }
   }
 }
 

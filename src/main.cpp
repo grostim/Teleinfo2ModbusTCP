@@ -70,7 +70,7 @@ struct mbData{
     { 0x0033, 500 }, // Frequence
     { 0xA100, 1 }, //Front selector status 
   };
-  int mbDatasize = 7;
+  int mbDatasize = 8;
 
   struct LINKY2MODBUS{
   const char* label;

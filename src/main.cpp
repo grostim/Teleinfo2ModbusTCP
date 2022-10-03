@@ -164,7 +164,7 @@ ModbusMessage FC03(ModbusMessage request)
     request.get(4, words);  // read # of words from request
     char debugString[1000];
 
-    debugD("FC03 received: read %d words @ %d", words, addr);
+    debugD("FC03 received: read %d words @ %x", words, addr);
 
     // Address overflow?
     if ((addr + words) > MBPV_MAX)
@@ -336,7 +336,7 @@ void PublishOnMQTT(String json2)
       String valuestring = String();
       valuestring = s;
       uint16_t value = valuestring.toInt();
-      Data2modbus(p.key().c_str(),value);
+      //Data2modbus(p.key().c_str(),value);
     } else {
       unsigned long s = p.value();
       #ifdef DEBUG_MQTT
@@ -346,7 +346,7 @@ void PublishOnMQTT(String json2)
       topic = String(mqtt_topic) + "/"; 
       topic = topic + String(p.key().c_str());
       client.publish(topic.c_str(), String(s).c_str());
-      Data2modbus(p.key().c_str(),p.value());
+      //Data2modbus(p.key().c_str(),p.value());
     }
 
   }

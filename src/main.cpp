@@ -16,6 +16,7 @@
 #include <RemoteDebug.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <ModbusIP_ESP8266.h>
 
 //pinout pour le D1 Mini ESP32
 #define TIC_RX_PIN      23
@@ -50,84 +51,23 @@ const char* mqtt_password = "mqttpass";
 const _Mode_e modeLinky = TINFO_MODE_STANDARD; // 0= TINFO_MODE_HISTORIQUE ; 1= TINFO_MODE_STANDARD
 // global Modbus memory registers
 
-//ModbusServerWiFi MBserver;
+ModbusIP mb;
 RemoteDebug Debug;
 #define WEBSOCKET_DISABLED true
 WiFiClient espClient;
 PubSubClient client(espClient);
 
 // Voir https://www.enika.eu/data/files/produkty/energy%20m/CP/em24%20ethernet%20cp.pdf pour le détail des adresses et valeurs
-struct mbData{
-  int ModbusOffset;
-  uint16_t value;
-  } mbPV[256] = {
-    { 0x000B, 1653 }, //Carlo Gavazzi identification code UIN 
-    { 0x0302, 1 }, // Version and revision code of measurement module
-    { 0x0304, 1 }, // Version and revision code of communication module
-    { 0x1002, 3 }, // Measuring system  (3="1Ph", 4=“3P”)
-    { 0x0032, 0 }, // Phase sequence 
-    { 0x0033, 500 }, // Frequence
-    { 0xA100, 1 }, //Front selector status 
+const int constantesCompteur[][2]= { 
+  { 0x000B, 1653 }, //Carlo Gavazzi identification code UIN 
+  { 0x0302, 1 }, // Version and revision code of measurement module
+  { 0x0304, 1 }, // Version and revision code of communication module
+  { 0x1002, 3 }, // Measuring system  (3="1Ph", 4=“3P”)
+  { 0x0032, 0 }, // Phase sequence 
+  { 0x0033, 500 }, // Frequence
+  { 0xA100, 1 }, //Front selector status 
   };
-  int mbDatasize = 8;
 
-  struct LINKY2MODBUS{
-  const char* label;
-  int ModbusOffset;
-  float ratio;
-  } linky2modbus[] = {
-// Variable pour mode historiques
-//{"_UPTIME":60, "ADCO":2147483647, "OPTARIF":"HC..", "ISOUSC":45, "HCHC":1221514, "HCHP":2482864, "PTEC":"HP..", "IINST":3, "IMAX":90, "PAPP":920, "HHPHC":"A", "MOTDETAT":0}
-    //Pour contrat HC/HP
-    { "HCHC", 0x0048, 0.01 }, //Compteur Heures Creuses en Wh
-    { "HCHP", 0x0046, 0.01 }, //Compteur Heures Pleines en Wh
-    //Pour contrat EJP
-    { "EJPHN", 0x0046, 0.01 }, //Compteur EJP Heures Normales en Wh
-    { "EJPHPM", 0x0048, 0.01 }, //Compteur EJP Pointes en Wh
-    //Pour contrat Tempo
-    { "BBRHCJB", 0x0046, 0.01 }, //Compteur Bleu HC en Wh
-    { "BBRHPJB", 0x0048, 0.01 }, //Compteur Bleu HP en Wh
-    { "BBRHCJW", 0x004A, 0.01 }, //Compteur Blanc HC en Wh
-    { "BBRHPJW", 0x004C, 0.01 }, //Compteur Blanc HP en Wh      
-//    { "BBRHCJR", 0x0046, 0.01 }, //Compteur Rouge HC en Wh *** Malheuresement il n'y a que 4 index sur ELM24
-//    { "BBRHPJR", 0x0048, 0.01 }, //Compteur Rouge HP en Wh *** Malheuresement il n'y a que 4 index sur ELM24   
-    { "ADCO", 0x5000, 1}, //Identifiant Linky
-    //Monophasé
-    { "IINST", 0x000C, 1000}, //Intensité instantané en A 
-    { "PAPP", 0x0018, 10}, //Puissance Apparente en VA
-    // Triphasé
-    { "IINST1", 0x000C, 1000}, //Intensité instantané en A - L1
-    { "IINST2", 0x000E, 1000}, //Intensité instantané en A - L2
-    { "IINST3", 0x0010, 1000}, //Intensité instantané en A - L3
-
-// Variables pour mode Standard
-//{"_UPTIME":319500, "ADSC":2147483647, "VTIC":2, "NGTF":"H PLEINE/CREUSE ", "LTARF":" HEURE  PLEINE  ", "EAST":␛[0m3839865, "EASF01":1266150, "EASF02":2573715, "EASF03":0, "EASF04":0, "EASF05":0, "EASF06":0, "EASF07":0, "EASF08":0, "EASF09":0, "EASF10":0, "EASD01":3␛[0m839865, "EASD02":0, "EASD03":0, "EASD04":0, "IRMS1":3, "URMS1":233, "PREF":9, "PCOUP":9, "SINSTS":780, "SMAXSN":2910, "SMAXSN-1":5480, "CCASN":536, "CC␛[0mASN-1":1022, "UMOY1":230, "STGE":"00DA0401", "MSG1":"     PAS DE          MESSAGE    ", "PRM":2147483647, "RELAIS":0, "NTARF":2, "NJOURF":0, "NJOURF+1"␛[0m:0, "PJOURF+1":"0000C001 061E8002 161EC001 NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE"}
-    { "PRM", 0x5000, 1}, //Identifiant Linky
-    { "EAST", 0x0034, 0.01}, //Energie active soutirée totale en Wh
-    { "EASF01", 0x0046, 0.01 }, //Compteur EJP Heures Normales en Wh
-    { "EASF02", 0x0048, 0.01 }, //Compteur EJP Pointes en Wh
-    { "EASF03", 0x004A, 0.01 }, //Compteur EJP Heures Normales en Wh
-    { "EASF04", 0x004C, 0.01 }, //Compteur EJP Pointes en Wh
-    { "IRMS1", 0x000C, 1000}, //Intensité Efficace en A - L1
-    { "IRMS2", 0x000E, 1000}, //Intensité Efficace en A - L2
-    { "IRMS3", 0x0010, 1000}, //Intensité Efficace en A - L3
-    { "UMOY1", 0x0000, 10}, //Tension en V - L1
-    { "UMOY2", 0x0002, 10}, //Tension en V - L2
-    { "UMOY3", 0x0004, 10}, //Tension en V - L3
-    { "SINSTS", 0x0028, 10}, //Puissance Apparente instantanéé en VA
-    { "SINSTS1", 0x0018, 10}, //Puissance Apparente instantanéé en VA - L1
-    { "SINSTS2", 0x001A, 10}, //Puissance Apparente instantanéé en VA - L2
-    { "SINSTS3", 0x001C, 10}, //Puissance Apparente instantanéé en VA - L2
-    { "SINSTI", 0x002A, -10}, //Puissance Apparente instantanéé en VA
-  // On triche un peu pour émuler le EM24:
-    { "SINSTS", 0x0028, 10}, //Puissance Apparente instantanéé en W (au lieu de VA)
-    { "SINSTS1", 0x0012, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L1
-    { "SINSTS2", 0x0014, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L2
-    { "SINSTS3", 0x0016, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L2
-    { "SINSTI", 0x0028, -10}, //Puissance Apparente instantanéé en W (au lieu de VA)
-    { "EAST", 0x0040, 0.01}, //Energie active soutirée totale en Wh (Phase1)
-    { "EAIT", 0x004E, 0.01}, //Energie active injectée totale en Wh
-  };
 
 TInfo tinfo; // Teleinfo object
 
@@ -142,53 +82,26 @@ unsigned long uptime=0; // save value we can use in sketch even if we're interru
 // Used to indicate if we need to send all date or just modified ones
 boolean fulldata = true;
 
-uint16_t getValue(int ModbusOffset) {
-    for (byte i = 0; i< (sizeof(mbPV) / sizeof(mbPV[0])) ; i = i + 1) {
-      if (ModbusOffset = mbPV[i].ModbusOffset) {
-        return mbPV[i].value;
-        break;
+/* ======================================================================
+Function: PublishIfAvailable
+Purpose : Si le label est dispo dans le json publie la valeur (corrigé du ratio) sur Modbus à l'offset.
+Input   : A json formatted string, a label string, a modbus offset and a correction factor
+Output  : --
+Comments: -
+====================================================================== */
+void PublishIfAvailable(String json1, String label, uint16_t offset, float ratio)
+{
+  String result = "";
+  result = jsonExtract(json1, label); //Total kWh HC
+  if (result != "") {
+    if (mb.addHreg(offset,result.toInt()*ratio)) {
+    debugI("Publish %s on Modbus register %X , value : %d",label, offset,result.toInt()*ratio );
+    } 
+    else {
+      debugE("NOT Published %s on Modbus register %X , value : %d",label, offset,result.toInt()*ratio );
       }
   }
-  return 0;
 }
-/*
-// Server function to handle FC 0x03
-ModbusMessage FC03(ModbusMessage request)
-{
-    //Serial.println(request);
-    ModbusMessage response; // The Modbus message we are going to give back
-    uint16_t addr = 0;      // Start address
-    uint16_t words = 0;     // # of words requested
-    request.get(2, addr);   // read address from request
-    request.get(4, words);  // read # of words from request
-    char debugString[1000];
-
-    debugD("FC03 received: read %d words @ %x", words, addr);
-
-    // Address overflow?
-    if ((addr + words) > MBPV_MAX)
-    {
-        // Yes - send respective error response
-        response.setError(request.getServerID(), request.getFunctionCode(), ILLEGAL_DATA_ADDRESS);
-        debugE("ERROR - ILLEGAL DATA ADDRESS\r\n");
-        return response;
-    }
-
-    // Set up response
-    response.add(request.getServerID(), request.getFunctionCode(), (uint8_t)(words * 2));
-    sprintf(debugString, "Read : ");
-    for (uint8_t i = 0; i < words; ++i)
-    {        
-        // send increasing data values
-        response.add((uint16_t)(getValue(addr + 2*i)));
-        sprintf(debugString + strlen(debugString), "%i ", (getValue(addr + 2*i)));
-    }
-    debugV("%s\r\n", debugString);
-
-    return response;
-}
-
-*/
 
 /* ======================================================================
 Function: sendJSON 
@@ -268,35 +181,6 @@ String sendJSON(ValueList * me, boolean all)
   #endif
   return json;  
 }
-
-
-/* ======================================================================
-Function: Data2modbus
-Purpose : map relevant data to Modbus register
-Input   : key, value
-Output  : --
-Comments: -
-====================================================================== */
-
-void Data2modbus(String key, uint16_t value)
-{
-/*
-  for (byte i = 0; i< (sizeof(linky2modbus) / sizeof(linky2modbus[0])) ; i = i + 1) {
-    const char* key2 =key.c_str();
-    if (linky2modbus[i].label = key2){
-        for (byte j = 0; i< (sizeof(mbPV) / sizeof(mbPV[0])) ; j = j + 1) {
-          if (linky2modbus[i].ModbusOffset = mbPV[j].ModbusOffset){
-            mbPV[j].value = value * linky2modbus[i].ratio;
-          } else {
-            mbPV[mbDatasize+1].ModbusOffset = linky2modbus[i].ModbusOffset;
-            mbPV[mbDatasize+1].value = value * linky2modbus[i].ratio;
-            mbDatasize++;
-          }
-        }
-    }
-  }
-*/
-}
  
 
 /* ======================================================================
@@ -337,7 +221,6 @@ void PublishOnMQTT(String json2)
       String valuestring = String();
       valuestring = s;
       uint16_t value = valuestring.toInt();
-      //Data2modbus(p.key().c_str(),value);
     } else {
       unsigned long s = p.value();
       #ifdef DEBUG_MQTT
@@ -347,11 +230,85 @@ void PublishOnMQTT(String json2)
       topic = String(mqtt_topic) + "/"; 
       topic = topic + String(p.key().c_str());
       client.publish(topic.c_str(), String(s).c_str());
-      //Data2modbus(p.key().c_str(),p.value());
     }
 
   }
 
+}
+
+/* ======================================================================
+Function: JSON2Modbus
+Purpose : Extract relevant data from Json and output to Modbus register
+Input   : A json formatted string
+Output  : --
+Comments: -
+====================================================================== */
+void JSON2Modbus(String json)
+{
+  // Voir https://www.enika.eu/data/files/produkty/energy%20m/CP/em24%20ethernet%20cp.pdf pour le détail des adresses et valeurs coté ELM24
+  //Voir https://www.enedis.fr/media/2035/download pour les label coté Linky
+  struct LINKY2MODBUS{
+  const char* label;
+  int ModbusOffset;
+  float ratio;
+  } linky2modbus[] = {
+// Variable pour mode historiques
+//{"_UPTIME":60, "ADCO":2147483647, "OPTARIF":"HC..", "ISOUSC":45, "HCHC":1221514, "HCHP":2482864, "PTEC":"HP..", "IINST":3, "IMAX":90, "PAPP":920, "HHPHC":"A", "MOTDETAT":0}
+    //Pour contrat HC/HP
+    { "HCHC", 0x0048, 0.01 }, //Compteur Heures Creuses en Wh
+    { "HCHP", 0x0046, 0.01 }, //Compteur Heures Pleines en Wh
+    //Pour contrat EJP
+    { "EJPHN", 0x0046, 0.01 }, //Compteur EJP Heures Normales en Wh
+    { "EJPHPM", 0x0048, 0.01 }, //Compteur EJP Pointes en Wh
+    //Pour contrat Tempo
+    { "BBRHCJB", 0x0046, 0.01 }, //Compteur Bleu HC en Wh
+    { "BBRHPJB", 0x0048, 0.01 }, //Compteur Bleu HP en Wh
+    { "BBRHCJW", 0x004A, 0.01 }, //Compteur Blanc HC en Wh
+    { "BBRHPJW", 0x004C, 0.01 }, //Compteur Blanc HP en Wh      
+//    { "BBRHCJR", 0x0046, 0.01 }, //Compteur Rouge HC en Wh *** Malheuresement il n'y a que 4 index sur ELM24
+//    { "BBRHPJR", 0x0048, 0.01 }, //Compteur Rouge HP en Wh *** Malheuresement il n'y a que 4 index sur ELM24   
+    { "ADCO", 0x5000, 1}, //Identifiant Linky
+    //Monophasé
+    { "IINST", 0x000C, 1000}, //Intensité instantané en A 
+    { "PAPP", 0x0018, 10}, //Puissance Apparente en VA
+    // Triphasé
+    { "IINST1", 0x000C, 1000}, //Intensité instantané en A - L1
+    { "IINST2", 0x000E, 1000}, //Intensité instantané en A - L2
+    { "IINST3", 0x0010, 1000}, //Intensité instantané en A - L3
+
+// Variables pour mode Standard
+//{"_UPTIME":319500, "ADSC":2147483647, "VTIC":2, "NGTF":"H PLEINE/CREUSE ", "LTARF":" HEURE  PLEINE  ", "EAST":␛[0m3839865, "EASF01":1266150, "EASF02":2573715, "EASF03":0, "EASF04":0, "EASF05":0, "EASF06":0, "EASF07":0, "EASF08":0, "EASF09":0, "EASF10":0, "EASD01":3␛[0m839865, "EASD02":0, "EASD03":0, "EASD04":0, "IRMS1":3, "URMS1":233, "PREF":9, "PCOUP":9, "SINSTS":780, "SMAXSN":2910, "SMAXSN-1":5480, "CCASN":536, "CC␛[0mASN-1":1022, "UMOY1":230, "STGE":"00DA0401", "MSG1":"     PAS DE          MESSAGE    ", "PRM":2147483647, "RELAIS":0, "NTARF":2, "NJOURF":0, "NJOURF+1"␛[0m:0, "PJOURF+1":"0000C001 061E8002 161EC001 NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE"}
+    { "PRM", 0x5000, 1}, //Identifiant Linky
+    { "EAST", 0x0034, 0.01}, //Energie active soutirée totale en Wh
+    { "EASF01", 0x0046, 0.01 }, //Compteur EJP Heures Normales en Wh
+    { "EASF02", 0x0048, 0.01 }, //Compteur EJP Pointes en Wh
+    { "EASF03", 0x004A, 0.01 }, //Compteur EJP Heures Normales en Wh
+    { "EASF04", 0x004C, 0.01 }, //Compteur EJP Pointes en Wh
+    { "IRMS1", 0x000C, 1000}, //Intensité Efficace en A - L1
+    { "IRMS2", 0x000E, 1000}, //Intensité Efficace en A - L2
+    { "IRMS3", 0x0010, 1000}, //Intensité Efficace en A - L3
+    { "UMOY1", 0x0000, 10}, //Tension en V - L1
+    { "UMOY2", 0x0002, 10}, //Tension en V - L2
+    { "UMOY3", 0x0004, 10}, //Tension en V - L3
+    { "SINSTS", 0x002A, 10}, //Puissance Apparente instantanéé en VA
+    { "SINSTS1", 0x0018, 10}, //Puissance Apparente instantanéé en VA - L1
+    { "SINSTS2", 0x001A, 10}, //Puissance Apparente instantanéé en VA - L2
+    { "SINSTS3", 0x001C, 10}, //Puissance Apparente instantanéé en VA - L2
+    { "SINSTI", 0x002A, -10}, //Puissance Apparente instantanéé en VA
+  // On triche un peu pour émuler le EM24:
+    { "SINSTS", 0x0028, 10}, //Puissance Apparente instantanéé en W (au lieu de VA)
+    { "SINSTS1", 0x0012, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L1
+    { "SINSTS2", 0x0014, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L2
+    { "SINSTS3", 0x0016, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L2
+    { "SINSTI", 0x0028, -10}, //Puissance Apparente instantanéé en W (au lieu de VA)
+    { "EAST", 0x0040, 0.01}, //Energie active soutirée totale en Wh (Phase1)
+    { "EAIT", 0x004E, 0.01}, //Energie active injectée totale en Wh
+  };
+//{"_UPTIME":60, "ADCO":2147483647, "OPTARIF":"HC..", "ISOUSC":45, "HCHC":1221514, "HCHP":2482864, "PTEC":"HP..", "IINST":3, "IMAX":90, "PAPP":920, "HHPHC":"A", "MOTDETAT":0}
+  
+  for (byte i = 0; i< (sizeof(linky2modbus) / sizeof(linky2modbus[0])) ; i = i + 1) {
+    PublishIfAvailable(json, linky2modbus[i].label, linky2modbus[i].ModbusOffset, linky2modbus[i].ratio);
+  }
 }
 
 /* ======================================================================
@@ -401,6 +358,7 @@ void NewFrame(ValueList * me)
     #ifdef DEBUG_LINKY
     debugD("%s", jsonresult);
     #endif
+    JSON2Modbus(jsonresult);
     PublishOnMQTT(jsonresult);
   }
   fulldata = false;
@@ -429,6 +387,7 @@ void UpdatedFrame(ValueList * me)
   #ifdef DEBUG_LINKY
   debugD("%s", jsonresult2);
   #endif
+  JSON2Modbus(jsonresult2);
   PublishOnMQTT(jsonresult2);
   fulldata = false;
 }
@@ -460,10 +419,10 @@ Output  : -
 Comments: -
 ====================================================================== */
 void start_modbus(){
-/*
-  MBserver.registerWorker(MBTCP_ID, READ_HOLD_REGISTER, &FC03);
-  MBserver.start(502, 4, 20000);
-*/
+  mb.server(502);
+  for (byte i = 0; i< (sizeof(constantesCompteur) / sizeof(constantesCompteur[0])) ; i = i + 1) {
+    mb.addHreg(constantesCompteur[i][0],constantesCompteur[i][1]);
+  }
 }
 
 /* ======================================================================
@@ -706,6 +665,7 @@ void loop()
     reconnect();
   }
   client.loop();
+  mb.task();
   Debug.handle();
 
 }

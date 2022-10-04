@@ -9,7 +9,6 @@
 
 #include <WiFi.h>
 #include <LibTeleinfo.h>
-#include "ModbusServerWiFi.h"
 #include <jsonlib.h>
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
@@ -51,7 +50,7 @@ const char* mqtt_password = "mqttpass";
 const _Mode_e modeLinky = TINFO_MODE_STANDARD; // 0= TINFO_MODE_HISTORIQUE ; 1= TINFO_MODE_STANDARD
 // global Modbus memory registers
 
-ModbusServerWiFi MBserver;
+//ModbusServerWiFi MBserver;
 RemoteDebug Debug;
 #define WEBSOCKET_DISABLED true
 WiFiClient espClient;
@@ -115,7 +114,7 @@ struct mbData{
     { "UMOY1", 0x0000, 10}, //Tension en V - L1
     { "UMOY2", 0x0002, 10}, //Tension en V - L2
     { "UMOY3", 0x0004, 10}, //Tension en V - L3
-    { "SINSTS", 0x002A, 10}, //Puissance Apparente instantanéé en VA
+    { "SINSTS", 0x0028, 10}, //Puissance Apparente instantanéé en VA
     { "SINSTS1", 0x0018, 10}, //Puissance Apparente instantanéé en VA - L1
     { "SINSTS2", 0x001A, 10}, //Puissance Apparente instantanéé en VA - L2
     { "SINSTS3", 0x001C, 10}, //Puissance Apparente instantanéé en VA - L2
@@ -152,7 +151,7 @@ uint16_t getValue(int ModbusOffset) {
   }
   return 0;
 }
-
+/*
 // Server function to handle FC 0x03
 ModbusMessage FC03(ModbusMessage request)
 {
@@ -189,7 +188,7 @@ ModbusMessage FC03(ModbusMessage request)
     return response;
 }
 
-
+*/
 
 /* ======================================================================
 Function: sendJSON 
@@ -278,9 +277,10 @@ Input   : key, value
 Output  : --
 Comments: -
 ====================================================================== */
+
 void Data2modbus(String key, uint16_t value)
 {
-
+/*
   for (byte i = 0; i< (sizeof(linky2modbus) / sizeof(linky2modbus[0])) ; i = i + 1) {
     const char* key2 =key.c_str();
     if (linky2modbus[i].label = key2){
@@ -295,6 +295,7 @@ void Data2modbus(String key, uint16_t value)
         }
     }
   }
+*/
 }
  
 
@@ -459,10 +460,10 @@ Output  : -
 Comments: -
 ====================================================================== */
 void start_modbus(){
-
+/*
   MBserver.registerWorker(MBTCP_ID, READ_HOLD_REGISTER, &FC03);
   MBserver.start(502, 4, 20000);
-
+*/
 }
 
 /* ======================================================================

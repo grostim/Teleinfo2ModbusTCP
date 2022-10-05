@@ -70,7 +70,7 @@ const uint16_t constantesCompteur[][2]= {
   { 0x5003, 0x3030 }, //Serial Digit  7 & 8
   { 0x5004, 0x3030 }, //Serial Digit  9 & 10
   { 0x5005, 0x3030 }, //Serial Digit  11 & 12
-  { 0x5006, 0x3000 }, //Serial Digit  13
+  { 0x5006, 0x3100 }, //Serial Digit  13
   { 0xA000, 0x7 }, //Application : Doit être égal à 7 pour Victron
   //Infos triphasées non utilisées:
   { 0x0000, 0 }, // V-L2
@@ -84,7 +84,7 @@ const uint16_t constantesCompteur[][2]= {
   //Initialisation des valeurs pertinentes pour le monophasé
   { 0x0002, 0 }, // V-L1
   { 0x000E, 0 }, // A-L1
-  { 0x0014, 0 }, // W-L1
+  { 0x0012, 0 }, // W-L1
   { 0x0028, 0 }, // W-Total
   { 0x002A, 0 }, // VA-Total
   { 0x0040, 1 }, // kWh-L1
@@ -219,6 +219,29 @@ Input   : A json formatted string
 Output  : --
 Comments: -
 ====================================================================== */
+void pubMQTTvalue(JsonString key, JsonVariant value)
+{
+  unsigned long s = value;
+  #ifdef DEBUG_MQTT
+  debugW("%s : %d",key.c_str(), s);
+  #endif
+  String topic = String();
+  topic = String(mqtt_topic) + "/"; 
+  topic = topic + String(key.c_str());
+  client.publish(topic.c_str(), String(s).c_str());
+}
+
+void pubMQTTstring(JsonString key, JsonVariant value)
+{
+  const char* s = value;
+  #ifdef DEBUG_MQTT
+  debugW("%s : %s",key.c_str(), s);
+  #endif
+  String topic = String();
+  topic = String(mqtt_topic) + "/"; 
+  topic = topic + String(key.c_str());
+  client.publish(topic.c_str(), s);
+}
 
 void PublishOnMQTT(String json2)
 {
@@ -237,28 +260,36 @@ void PublishOnMQTT(String json2)
   JsonObject obj = doc.as<JsonObject>();
 
   for (JsonPair p : obj) {
-
-    if (p.value().is<const char*>()) {
-      const char* s = p.value();
-      #ifdef DEBUG_MQTT
-      debugW("%s : %s",p.key().c_str(), s);
-      #endif
-      String topic = String();
-      topic = String(mqtt_topic) + "/"; 
-      topic = topic + String(p.key().c_str());
-      client.publish(topic.c_str(), s);
-      String valuestring = String();
-      valuestring = s;
-      uint16_t value = valuestring.toInt();
-    } else {
-      unsigned long s = p.value();
-      #ifdef DEBUG_MQTT
-      debugW("%s : %d",p.key().c_str(), s);
-      #endif
-      String topic = String();
-      topic = String(mqtt_topic) + "/"; 
-      topic = topic + String(p.key().c_str());
-      client.publish(topic.c_str(), String(s).c_str());
+    String s = p.key().c_str();
+    if (s=="SINSTS")
+    {
+      debugV("SINTS");
+      pubMQTTvalue(p.key(), p.value());
+      uint16_t value = p.value();
+      uint16_t computedresult = value * 10;
+      mb.Hreg(0x0012,computedresult);
+      mb.Hreg(0x0018,computedresult);
+      mb.Hreg(0x0028,computedresult);
+      mb.Hreg(0x002A,computedresult);
+      debugI("Publish %s on Modbus register %X , value : %u",p.key().c_str(), 0x0012,computedresult );
+      debugI("Publish %s on Modbus register %X , value : %u",p.key().c_str(), 0x0018,computedresult );
+      debugI("Publish %s on Modbus register %X , value : %u",p.key().c_str(), 0x0028,computedresult );
+      debugI("Publish %s on Modbus register %X , value : %u",p.key().c_str(), 0x002A,computedresult );
+    } 
+    else if (p.key().c_str()=="UMOY1")
+    {
+      debugV("UMOY1");
+      pubMQTTvalue(p.key(), p.value());
+    }
+    
+    else 
+    {
+      debugV("Default");
+      if (p.value().is<const char*>()) {
+        pubMQTTstring(p.key(), p.value());
+      } else {
+        pubMQTTvalue(p.key(), p.value());
+      }
     }
 
   }
@@ -307,7 +338,7 @@ void JSON2Modbus(String json)
 
 // Variables pour mode Standard
 //{"_UPTIME":319500, "ADSC":2147483647, "VTIC":2, "NGTF":"H PLEINE/CREUSE ", "LTARF":" HEURE  PLEINE  ", "EAST":␛[0m3839865, "EASF01":1266150, "EASF02":2573715, "EASF03":0, "EASF04":0, "EASF05":0, "EASF06":0, "EASF07":0, "EASF08":0, "EASF09":0, "EASF10":0, "EASD01":3␛[0m839865, "EASD02":0, "EASD03":0, "EASD04":0, "IRMS1":3, "URMS1":233, "PREF":9, "PCOUP":9, "SINSTS":780, "SMAXSN":2910, "SMAXSN-1":5480, "CCASN":536, "CC␛[0mASN-1":1022, "UMOY1":230, "STGE":"00DA0401", "MSG1":"     PAS DE          MESSAGE    ", "PRM":2147483647, "RELAIS":0, "NTARF":2, "NJOURF":0, "NJOURF+1"␛[0m:0, "PJOURF+1":"0000C001 061E8002 161EC001 NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE"}
-    { "PRM", 0x5000, 1}, //Identifiant Linky
+    //{ "PRM", 0x5000, 1}, //Identifiant Linky
     { "EAST", 0x0034, 0.01}, //Energie active soutirée totale en Wh
     { "EASF01", 0x0046, 0.01 }, //Compteur EJP Heures Normales en Wh
     { "EASF02", 0x0048, 0.01 }, //Compteur EJP Pointes en Wh
@@ -326,6 +357,7 @@ void JSON2Modbus(String json)
     { "SINSTI", 0x002A, -10}, //Puissance Apparente instantanéé en VA
   // On triche un peu pour émuler le EM24:
     { "SINSTS", 0x0028, 10}, //Puissance Apparente instantanéé en W (au lieu de VA)
+    { "SINSTS", 0x0012, 10}, //Puissance Apparente instantanéé en W (au lieu de VA)
     { "SINSTS1", 0x0012, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L1
     { "SINSTS2", 0x0014, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L2
     { "SINSTS3", 0x0016, 10}, //Puissance Apparente instantanéé en W (au lieu de VA) - L2
@@ -387,7 +419,7 @@ void NewFrame(ValueList * me)
     #ifdef DEBUG_LINKY
     debugD("%s", jsonresult);
     #endif
-    JSON2Modbus(jsonresult);
+//    JSON2Modbus(jsonresult);
     PublishOnMQTT(jsonresult);
   }
   fulldata = false;
@@ -416,7 +448,7 @@ void UpdatedFrame(ValueList * me)
   #ifdef DEBUG_LINKY
   debugD("%s", jsonresult2);
   #endif
-  JSON2Modbus(jsonresult2);
+//  JSON2Modbus(jsonresult2);
   PublishOnMQTT(jsonresult2);
   fulldata = false;
 }

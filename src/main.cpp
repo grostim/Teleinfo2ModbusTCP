@@ -22,8 +22,6 @@
 #define TIC_RX_PIN      23
 #define RGB_LED_PIN     18
 
-#define MBTCP_ID 1 // modbus TCP server ID
-#define MBPV_MAX 0xA102
 
 #ifdef RGB_LED_PIN
 #include <NeoPixelBus.h>
@@ -58,14 +56,40 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 
 // Voir https://www.enika.eu/data/files/produkty/energy%20m/CP/em24%20ethernet%20cp.pdf pour le détail des adresses et valeurs
-const int constantesCompteur[][2]= { 
-  { 0x000B, 1653 }, //Carlo Gavazzi identification code UIN 
-  { 0x0302, 1 }, // Version and revision code of measurement module
-  { 0x0304, 1 }, // Version and revision code of communication module
+const uint16_t constantesCompteur[][2]= { 
+  { 0x000B, 1648 }, //Carlo Gavazzi identification code UIN 
+  { 0x0302, 0x101E }, // Version and revision code of measurement module
+  { 0x0304, 0x101E }, // Version and revision code of communication module
   { 0x1002, 3 }, // Measuring system  (3="1Ph", 4=“3P”)
   { 0x0032, 0 }, // Phase sequence 
   { 0x0033, 500 }, // Frequence
-  { 0xA100, 1 }, //Front selector status 
+  { 0xA100, 0x1 }, //Front selector status 
+  { 0x5000, 0x4c69 }, //Serial Digit  1 & 2
+  { 0x5001, 0x6e6b }, //Serial Digit  3 & 4
+  { 0x5002, 0x7930 }, //Serial Digit  5 & 6
+  { 0x5003, 0x3030 }, //Serial Digit  7 & 8
+  { 0x5004, 0x3030 }, //Serial Digit  9 & 10
+  { 0x5005, 0x3030 }, //Serial Digit  11 & 12
+  { 0x5006, 0x3000 }, //Serial Digit  13
+  { 0xA000, 0x7 }, //Application : Doit être égal à 7 pour Victron
+  //Infos triphasées non utilisées:
+  { 0x0000, 0 }, // V-L2
+  { 0x000C, 0 }, // A-L2
+  { 0x0012, 0 }, // W-L2
+  { 0x0042, 0 }, // kWh-L2
+  { 0x0004, 0 }, // V-L2
+  { 0x0010, 0 }, // A-L2
+  { 0x0016, 0 }, // W-L2
+  { 0x0044, 0 }, // kWh-L2
+  //Initialisation des valeurs pertinentes pour le monophasé
+  { 0x0002, 0 }, // V-L1
+  { 0x000E, 0 }, // A-L1
+  { 0x0014, 0 }, // W-L1
+  { 0x0028, 0 }, // W-Total
+  { 0x002A, 0 }, // VA-Total
+  { 0x0040, 1 }, // kWh-L1
+  { 0x0034, 1 }, // kWh+
+  { 0x004E, 1 }, // kWh-
   };
 
 
@@ -94,12 +118,17 @@ void PublishIfAvailable(String json1, String label, uint16_t offset, float ratio
   String result = "";
   result = jsonExtract(json1, label); //Total kWh HC
   if (result != "") {
-    if (mb.addHreg(offset,result.toInt()*ratio)) {
-    debugI("Publish %s on Modbus register %X , value : %d",label, offset,result.toInt()*ratio );
+    uint16_t computedresult = result.toInt()*ratio;
+    if (mb.Hreg(offset,computedresult)) {
+      debugI("Publish %s on Modbus register %X , value : %u",label, offset,computedresult );
     } 
+    else if (mb.addHreg(offset,computedresult))
+    {
+      debugI("Publish %s on Modbus register %X , value : %u",label, offset,computedresult );
+    }
     else {
-      debugE("NOT Published %s on Modbus register %X , value : %d",label, offset,result.toInt()*ratio );
-      }
+      debugE("NOT Published %s on Modbus register %X , value : %u",label, offset,computedresult );
+    }
   }
 }
 
@@ -419,7 +448,7 @@ Output  : -
 Comments: -
 ====================================================================== */
 void start_modbus(){
-  mb.server(502);
+  mb.server(ServerPort);
   for (byte i = 0; i< (sizeof(constantesCompteur) / sizeof(constantesCompteur[0])) ; i = i + 1) {
     mb.addHreg(constantesCompteur[i][0],constantesCompteur[i][1]);
   }

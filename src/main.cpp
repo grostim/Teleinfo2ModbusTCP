@@ -4,7 +4,7 @@
 
 // **********************************************************************************
 //#define DEBUG_MQTT
-//#define DEBUG_MODBUS
+#define DEBUG_MODBUS
 //#define DEBUG_LINKY
 
 #include <WiFi.h>
@@ -243,6 +243,19 @@ void pubMQTTstring(JsonString key, JsonVariant value)
   client.publish(topic.c_str(), s);
 }
 
+void pubModbusTCP(String label, int offset, uint16_t value)
+{
+  if (mb.Hreg(offset,value)) {
+    #ifdef DEBUG_MODBUS
+    debugI("%s published on Modbus register %X , value : %u",label, offset,value );
+    #endif
+  } else {
+    #ifdef DEBUG_MODBUS
+    debugE("%s NOT PUBLISHED on Modbus register %X , value : %u",label, offset,value);
+    #endif
+  }
+}
+
 void PublishOnMQTT(String json2)
 {
   debugD("%s", json2.c_str());
@@ -261,27 +274,61 @@ void PublishOnMQTT(String json2)
 
   for (JsonPair p : obj) {
     String s = p.key().c_str();
+    //{"_UPTIME":319500, "ADSC":2147483647, "VTIC":2, "NGTF":"H PLEINE/CREUSE ", "LTARF":" HEURE  PLEINE  ", "EAST":␛[0m3839865, "EASF01":1266150, "EASF02":2573715, "EASF03":0, "EASF04":0, "EASF05":0, "EASF06":0, "EASF07":0, "EASF08":0, "EASF09":0, "EASF10":0, "EASD01":3␛[0m839865, "EASD02":0, "EASD03":0, "EASD04":0, "IRMS1":3, "URMS1":233, "PREF":9, "PCOUP":9, "SINSTS":780, "SMAXSN":2910, "SMAXSN-1":5480, "CCASN":536, "CC␛[0mASN-1":1022, "UMOY1":230, "STGE":"00DA0401", "MSG1":"     PAS DE          MESSAGE    ", "PRM":2147483647, "RELAIS":0, "NTARF":2, "NJOURF":0, "NJOURF+1"␛[0m:0, "PJOURF+1":"0000C001 061E8002 161EC001 NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE"}
+
     if (s=="SINSTS")
     {
-      debugV("SINTS");
       pubMQTTvalue(p.key(), p.value());
       uint16_t value = p.value();
       uint16_t computedresult = value * 10;
-      mb.Hreg(0x0012,computedresult);
-      mb.Hreg(0x0018,computedresult);
-      mb.Hreg(0x0028,computedresult);
-      mb.Hreg(0x002A,computedresult);
-      debugI("Publish %s on Modbus register %X , value : %u",p.key().c_str(), 0x0012,computedresult );
-      debugI("Publish %s on Modbus register %X , value : %u",p.key().c_str(), 0x0018,computedresult );
-      debugI("Publish %s on Modbus register %X , value : %u",p.key().c_str(), 0x0028,computedresult );
-      debugI("Publish %s on Modbus register %X , value : %u",p.key().c_str(), 0x002A,computedresult );
+      pubModbusTCP(s,0x0012,computedresult); //W L1
+      pubModbusTCP(s,0x0018,computedresult); //VA L1
+      pubModbusTCP(s,0x0028,computedresult); //W Total
+      pubModbusTCP(s,0x002A,computedresult); //VA Total
     } 
+    else if (p.key().c_str()=="EAST")
+    {
+      uint16_t value = p.value();
+      uint16_t computedresult = value * 0.01;
+      pubMQTTvalue(p.key(), p.value());
+      pubModbusTCP(s,0x0040,computedresult); //kWh+ L1
+      pubModbusTCP(s,0x0034,computedresult); //kWh+ Tot
+    }
+    else if (p.key().c_str()=="EAIT")
+    {
+      uint16_t value = p.value();
+      uint16_t computedresult = value * 0.01;
+      pubMQTTvalue(p.key(), p.value());
+      pubModbusTCP(s,0x004E,computedresult); //kWh- Tot
+    }
+    else if (p.key().c_str()=="EASF01")
+    {
+      uint16_t value = p.value();
+      uint16_t computedresult = value * 0.01;
+      pubMQTTvalue(p.key(), p.value());
+      pubModbusTCP(s,0x0046,computedresult); //kWh+ T1
+    }
+    else if (p.key().c_str()=="EASF02")
+    {
+      uint16_t value = p.value();
+      uint16_t computedresult = value * 0.01;
+      pubMQTTvalue(p.key(), p.value());
+      pubModbusTCP(s,0x0048,computedresult); //kWh+ T1
+    }
     else if (p.key().c_str()=="UMOY1")
     {
-      debugV("UMOY1");
+      uint16_t value = p.value();
+      uint16_t computedresult = value * 10;
       pubMQTTvalue(p.key(), p.value());
+      pubModbusTCP(s,0x0000,computedresult); //V L1
     }
-    
+    else if (p.key().c_str()=="IRMS1")
+    {
+      uint16_t value = p.value();
+      uint16_t computedresult = value * 10000;
+      pubMQTTvalue(p.key(), p.value());
+      pubModbusTCP(s,0x000C,computedresult); //I L1
+    }
     else 
     {
       debugV("Default");

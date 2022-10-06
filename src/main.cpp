@@ -85,11 +85,14 @@ const uint16_t constantesCompteur[][2]= {
   { 0x0002, 0 }, // V-L1
   { 0x000E, 0 }, // A-L1
   { 0x0012, 0 }, // W-L1
+  { 0x0018, 0 }, // VA-L1
   { 0x0028, 0 }, // W-Total
   { 0x002A, 0 }, // VA-Total
-  { 0x0040, 1 }, // kWh-L1
-  { 0x0034, 1 }, // kWh+
-  { 0x004E, 1 }, // kWh-
+  { 0x0040, 0 }, // kWh-L1
+  { 0x0034, 0}, // kWh+
+  { 0x004E, 0 }, // kWh-
+  { 0x0046, 0 }, // kWh+ T1
+  { 0x0048, 0 }, // kWh+ T2
   };
 
 
@@ -286,46 +289,46 @@ void PublishOnMQTT(String json2)
       pubModbusTCP(s,0x0028,computedresult); //W Total
       pubModbusTCP(s,0x002A,computedresult); //VA Total
     } 
-    else if (p.key().c_str()=="EAST")
+    else if (s=="EAST")
     {
-      uint16_t value = p.value();
-      uint16_t computedresult = value * 0.01;
+      unsigned long value = p.value();
+      unsigned long computedresult = value / 100 ;
       pubMQTTvalue(p.key(), p.value());
       pubModbusTCP(s,0x0040,computedresult); //kWh+ L1
       pubModbusTCP(s,0x0034,computedresult); //kWh+ Tot
     }
-    else if (p.key().c_str()=="EAIT")
+    else if (s=="EAIT")
     {
-      uint16_t value = p.value();
-      uint16_t computedresult = value * 0.01;
+      unsigned long value = p.value();
+      unsigned long computedresult = value / 100 ;
       pubMQTTvalue(p.key(), p.value());
       pubModbusTCP(s,0x004E,computedresult); //kWh- Tot
     }
-    else if (p.key().c_str()=="EASF01")
+    else if (s=="EASF01")
     {
-      uint16_t value = p.value();
-      uint16_t computedresult = value * 0.01;
+      unsigned long value = p.value();
+      unsigned long computedresult = value / 100 ;
       pubMQTTvalue(p.key(), p.value());
       pubModbusTCP(s,0x0046,computedresult); //kWh+ T1
     }
-    else if (p.key().c_str()=="EASF02")
+    else if (s=="EASF02")
     {
-      uint16_t value = p.value();
-      uint16_t computedresult = value * 0.01;
+      unsigned long value = p.value();
+      unsigned long computedresult = value / 100 ;
       pubMQTTvalue(p.key(), p.value());
-      pubModbusTCP(s,0x0048,computedresult); //kWh+ T1
+      pubModbusTCP(s,0x0048,computedresult); //kWh+ T2
     }
-    else if (p.key().c_str()=="UMOY1")
+    else if (s=="UMOY1")
     {
       uint16_t value = p.value();
       uint16_t computedresult = value * 10;
       pubMQTTvalue(p.key(), p.value());
       pubModbusTCP(s,0x0000,computedresult); //V L1
     }
-    else if (p.key().c_str()=="IRMS1")
+    else if (s=="IRMS1")
     {
       uint16_t value = p.value();
-      uint16_t computedresult = value * 10000;
+      uint16_t computedresult = value * 1000;
       pubMQTTvalue(p.key(), p.value());
       pubModbusTCP(s,0x000C,computedresult); //I L1
     }

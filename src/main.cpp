@@ -308,20 +308,20 @@ void pubModbusTCP(String label, int offset, int32_t value)
   int16_t half_high = (int16_t)(value >> 16);
   if (mb.Hreg(offset,half_low)) {
     #ifdef DEBUG_MODBUS
-    debugI("%s published on Modbus register %X , value : %i",label, offset,half_low );
+    debugI("%s published on Modbus register %X , value : %d",label, offset,half_low );
     #endif
   } else {
     #ifdef DEBUG_MODBUS
-    debugE("%s NOT PUBLISHED on Modbus register %X , value : %i",label, offset,half_low);
+    debugE("%s NOT PUBLISHED on Modbus register %X , value : %d",label, offset,half_low);
     #endif
   }
   if (mb.Hreg(offset+1,half_high)) {
     #ifdef DEBUG_MODBUS
-    debugI("%s published on Modbus register %X , value : %i",label, offset+1,half_high );
+    debugI("%s published on Modbus register %X , value : %d",label, offset+1,half_high );
     #endif
   } else {
     #ifdef DEBUG_MODBUS
-    debugE("%s NOT PUBLISHED on Modbus register %X , value : %i",label, offset+1,half_high);
+    debugE("%s NOT PUBLISHED on Modbus register %X , value : %d",label, offset+1,half_high);
     #endif
   }
 }
@@ -351,9 +351,7 @@ void PublishOnMQTT(String json2)
       pubMQTTvalue(p.key(), p.value());
       int32_t value = p.value();
       int32_t computedresult = value * 10;
-      pubModbusTCP(s,0x0012,computedresult); //W L1
       pubModbusTCP(s,0x0018,computedresult); //VA L1
-      pubModbusTCP(s,0x0028,computedresult); //W Total
       pubModbusTCP(s,0x002A,computedresult); //VA Total
     } 
     else if (s=="EAST")
@@ -364,7 +362,7 @@ void PublishOnMQTT(String json2)
       pubMQTTvalue(p.key(), p.value());
       pubModbusTCP(s,0x0040,computedresult); //kWh+ L1
       pubModbusTCP(s,0x0034,computedresult); //kWh+ Tot
-      debugV("dernierEpochEAST: %i / now: %i ", dernierEpochEAST, now);
+      debugD("dernierEpochEAST: %i / now: %i ", dernierEpochEAST, now);
       if (dernierEpochEAST = 0) {
         dernierEpochEAST = now;
         dernierValeurEAST = value;
@@ -374,7 +372,10 @@ void PublishOnMQTT(String json2)
         int deltaEpoch = now - dernierEpochEAST; //s
         int deltaEAST = value - dernierValeurEAST; //Wh
         double PuissanceActive = deltaEAST / deltaEpoch * 3600;
-        debugV("deltaEAST: %i / deltaEpoch: %i = Puissance: %d", deltaEAST, deltaEpoch, PuissanceActive);
+        debugD("deltaEAST: %i / deltaEpoch: %i = Puissance: %d", deltaEAST, deltaEpoch, PuissanceActive);
+        computedresult = PuissanceActive * 10;
+        pubModbusTCP(s,0x0028,computedresult); //W Total
+        pubModbusTCP(s,0x0012,computedresult); //W L1
       }
     }
     else if (s=="EAIT")

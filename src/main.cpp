@@ -17,11 +17,12 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <ModbusIP_ESP8266.h>
+#include <time.h> 
+#include "esp_sntp.h"
 
 //pinout pour le D1 Mini ESP32
 #define TIC_RX_PIN      23
 #define RGB_LED_PIN     18
-
 
 #ifdef RGB_LED_PIN
 #include <NeoPixelBus.h>
@@ -54,6 +55,14 @@ RemoteDebug Debug;
 #define WEBSOCKET_DISABLED true
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+#define MY_NTP_SERVER "fr.pool.ntp.org"
+// https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
+#define MY_TZ "CET-1CEST,M3.5.0,M10.5.0/3"
+time_t now;    // this is the epoch
+tm tm;         // the structure tm holds time information in a more convenient way
+unsigned long dernierEpochEAST = 0;
+unsigned long dernierValeurEAST = 0;
 
 // Voir https://www.enika.eu/data/files/produkty/energy%20m/CP/em24%20ethernet%20cp.pdf pour le détail des adresses et valeurs
 const uint16_t constantesCompteur[][2]= { 
@@ -127,6 +136,34 @@ unsigned long uptime=0; // save value we can use in sketch even if we're interru
 
 // Used to indicate if we need to send all date or just modified ones
 boolean fulldata = true;
+
+void cbSyncTime(struct timeval *tv)  // callback function to show when NTP was synchronized
+{
+  debugD("NTP time synched");
+}
+
+void showTime() {
+ time(&now); // read the current time
+ localtime_r(&now, &tm); // update the structure tm with the current time
+ Debug.print("year:");
+ Debug.print(tm.tm_year + 1900); // years since 1900
+ Debug.print("\tmonth:");
+ Debug.print(tm.tm_mon + 1); // January = 0 (!)
+ Debug.print("\tday:");
+ Debug.print(tm.tm_mday); // day of month
+ Debug.print("\thour:");
+ Debug.print(tm.tm_hour); // hours since midnight 0-23
+ Debug.print(tm.tm_min); // minutes after the hour 0-59
+ Debug.print("\tsec:");
+ Debug.print(tm.tm_sec); // seconds after the minute 0-61*
+ Debug.print("\twday");
+ Debug.print(tm.tm_wday); // days since Sunday 0-6
+ if (tm.tm_isdst == 1) // Daylight Saving Time flag
+  Debug.print("\tDST");
+ else
+  Debug.print("\tstandard");
+ Debug.println();
+}
 
 /* ======================================================================
 Function: PublishIfAvailable
@@ -271,20 +308,20 @@ void pubModbusTCP(String label, int offset, int32_t value)
   int16_t half_high = (int16_t)(value >> 16);
   if (mb.Hreg(offset,half_low)) {
     #ifdef DEBUG_MODBUS
-    debugI("%s published on Modbus register %X , value : %u",label, offset,half_low );
+    debugI("%s published on Modbus register %X , value : %i",label, offset,half_low );
     #endif
   } else {
     #ifdef DEBUG_MODBUS
-    debugE("%s NOT PUBLISHED on Modbus register %X , value : %u",label, offset,half_low);
+    debugE("%s NOT PUBLISHED on Modbus register %X , value : %i",label, offset,half_low);
     #endif
   }
   if (mb.Hreg(offset+1,half_high)) {
     #ifdef DEBUG_MODBUS
-    debugI("%s published on Modbus register %X , value : %u",label, offset+1,half_high );
+    debugI("%s published on Modbus register %X , value : %i",label, offset+1,half_high );
     #endif
   } else {
     #ifdef DEBUG_MODBUS
-    debugE("%s NOT PUBLISHED on Modbus register %X , value : %u",label, offset+1,half_high);
+    debugE("%s NOT PUBLISHED on Modbus register %X , value : %i",label, offset+1,half_high);
     #endif
   }
 }
@@ -321,11 +358,24 @@ void PublishOnMQTT(String json2)
     } 
     else if (s=="EAST")
     {
+      time(&now);
       int32_t value = p.value();
       int32_t computedresult = value / 100 ;
       pubMQTTvalue(p.key(), p.value());
       pubModbusTCP(s,0x0040,computedresult); //kWh+ L1
       pubModbusTCP(s,0x0034,computedresult); //kWh+ Tot
+      debugV("dernierEpochEAST: %i / now: %i ", dernierEpochEAST, now);
+      if (dernierEpochEAST = 0) {
+        dernierEpochEAST = now;
+        dernierValeurEAST = value;
+      }
+      else
+      { 
+        int deltaEpoch = now - dernierEpochEAST; //s
+        int deltaEAST = value - dernierValeurEAST; //Wh
+        double PuissanceActive = deltaEAST / deltaEpoch * 3600;
+        debugV("deltaEAST: %i / deltaEpoch: %i = Puissance: %d", deltaEAST, deltaEpoch, PuissanceActive);
+      }
     }
     else if (s=="EAIT")
     {
@@ -668,6 +718,13 @@ void got_ip_from_ap(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info){
     Debug.begin("ESP32"); 
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(callback);
+
+    sntp_set_sync_interval(1 * 60 * 60 * 1000UL); //Chaque heure
+    sntp_set_time_sync_notification_cb(cbSyncTime);
+    configTime(0, 0, MY_NTP_SERVER); // 0, 0 because we will use TZ in the next line
+    setenv("TZ", MY_TZ, 1); // Set environment variable with your time zone
+    tzset();
+    showTime();
 }
 
 

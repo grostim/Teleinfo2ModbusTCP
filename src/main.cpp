@@ -137,10 +137,13 @@ unsigned long uptime=0; // save value we can use in sketch even if we're interru
 // Used to indicate if we need to send all date or just modified ones
 boolean fulldata = true;
 
-void cbSyncTime(struct timeval *tv)  // callback function to show when NTP was synchronized
+/// @brief callback function to show when NTP was synchronized
+/// @param tv 
+void cbSyncTime(struct timeval *tv)  
 {
   debugD("NTP time synched");
 }
+
 
 void showTime() {
  time(&now); // read the current time

@@ -145,6 +145,7 @@ void cbSyncTime(struct timeval *tv)
 }
 
 
+/// @brief Affiche les détails de l'heure
 void showTime() {
  time(&now); // read the current time
  localtime_r(&now, &tm); // update the structure tm with the current time
@@ -168,14 +169,7 @@ void showTime() {
  Debug.println();
 }
 
-/* ======================================================================
-Function: sendJSON 
-Purpose : dump teleinfo values on serial
-Input   : linked list pointer on the concerned data
-          true to dump all values, false for only modified ones
-Output  : A json formatted string
-Comments: -
-====================================================================== */
+
 String sendJSON(ValueList * me, boolean all)
 {
   bool firstdata = true;
@@ -334,7 +328,7 @@ void PublishOnMQTT(String json2)
     String s = p.key().c_str();
     //{"_UPTIME":319500, "ADSC":2147483647, "VTIC":2, "NGTF":"H PLEINE/CREUSE ", "LTARF":" HEURE  PLEINE  ", "EAST":␛[0m3839865, "EASF01":1266150, "EASF02":2573715, "EASF03":0, "EASF04":0, "EASF05":0, "EASF06":0, "EASF07":0, "EASF08":0, "EASF09":0, "EASF10":0, "EASD01":3␛[0m839865, "EASD02":0, "EASD03":0, "EASD04":0, "IRMS1":3, "URMS1":233, "PREF":9, "PCOUP":9, "SINSTS":780, "SMAXSN":2910, "SMAXSN-1":5480, "CCASN":536, "CC␛[0mASN-1":1022, "UMOY1":230, "STGE":"00DA0401", "MSG1":"     PAS DE          MESSAGE    ", "PRM":2147483647, "RELAIS":0, "NTARF":2, "NJOURF":0, "NJOURF+1"␛[0m:0, "PJOURF+1":"0000C001 061E8002 161EC001 NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE NONUTILE"}
 
-    if (s=="SINSTS")
+    if (s=="SINSTS") 
     {
       pubMQTTvalue(p.key(), p.value());
       int32_t value = p.value();
@@ -342,7 +336,7 @@ void PublishOnMQTT(String json2)
       pubModbusTCP(s,0x0018,computedresult); //VA L1
       pubModbusTCP(s,0x002A,computedresult); //VA Total
     } 
-    else if (s=="EAST")
+    else if (s=="EAST") 
     {
       time(&now);
       int32_t value = p.value();
@@ -370,6 +364,8 @@ void PublishOnMQTT(String json2)
         Intensite = Intensite * 1000 ;
         computedresult = (int32_t)Intensite;
         pubModbusTCP("IRMS",0x000C,computedresult); //A L1
+        dernierEpochEAST = now;
+        dernierValeurEAST = value;
       }
     }
     else if (s=="EAIT")

@@ -501,6 +501,14 @@ void UpdatedFrame(ValueList * me)
 }
 
 
+void disconnected_from_ap(WiFiEvent_t event, WiFiEventInfo_t info){
+  Serial.println("Disconnected from WIFI access point");
+  Serial.print("WiFi lost connection. Reason: ");
+  Serial.println(info.wifi_sta_disconnected.reason);
+  Serial.println("Reconnecting...");
+  WiFi.begin(ssid, password);
+}
+
 
 /* ======================================================================
 Function: connected_to_ap
@@ -644,6 +652,8 @@ void got_ip_from_ap(WiFiEvent_t wifi_event, WiFiEventInfo_t wifi_info){
     showTime();
 }
 
+/// @brief 
+/// @brief 
 
 
 void reconnect() {
@@ -697,6 +707,7 @@ void setup()
   //On active les fonctions de callback qui s'active une fois le wifi OK
   WiFi.onEvent(connected_to_ap, ARDUINO_EVENT_WIFI_STA_CONNECTED);
   WiFi.onEvent(got_ip_from_ap, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+  WiFi.onEvent(disconnected_from_ap, ARDUINO_EVENT_WIFI_STA_DISCONNECTED); 
   
   WiFi.begin(ssid, password);
   Serial.println("\nConnecting");
